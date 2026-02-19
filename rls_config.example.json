@@ -1,0 +1,15 @@
+{
+  "_comment": "RLS configuration for DAX query filtering. Copy to rls_config.json and customise.",
+
+  "enabled": true,
+
+  "identity_table": "Users",
+  "identity_column": "UPN",
+
+  "filter_table": "SalesTerritories",
+  "filter_column": "SalesTerritoryRegion",
+
+  "custom_lookup_dax": null,
+
+  "description": "Each user sees data only for their assigned sales territory regions."
+}

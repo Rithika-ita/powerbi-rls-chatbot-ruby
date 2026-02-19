@@ -6,6 +6,7 @@ Embeds a Power BI report with RLS + a side-by-side chatbot.
 from __future__ import annotations
 
 import logging
+import pathlib
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -21,10 +22,22 @@ from powerbi_service import generate_embed_token
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+_ROOT = pathlib.Path(__file__).parent
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Power BI RLS Chatbot starting …")
+    # Check for first-run: warn if config files are missing
+    schema_path = _ROOT / "sample_report" / "schema.json"
+    rls_path = _ROOT / "rls_config.json"
+    if not schema_path.exists() or not rls_path.exists():
+        logger.warning(
+            "┌────────────────────────────────────────────────────┐\n"
+            "│  First run detected!  Run:  python setup.py        │\n"
+            "│  to auto-discover schema and RLS configuration.    │\n"
+            "└────────────────────────────────────────────────────┘"
+        )
     yield
     logger.info("Shutting down …")
 
