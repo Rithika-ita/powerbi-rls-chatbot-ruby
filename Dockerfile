@@ -1,12 +1,14 @@
-FROM python:3.12-slim
+FROM ruby:3.2-slim
+
+RUN apt-get update -qq && apt-get install -y build-essential curl
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY Gemfile Gemfile.lock ./
+RUN bundle install
 
 COPY . .
 
-EXPOSE 8000
+EXPOSE 4567
 
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["ruby", "app.rb", "-o", "0.0.0.0"]

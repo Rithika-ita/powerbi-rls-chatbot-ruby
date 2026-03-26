@@ -20,9 +20,9 @@
             <label for="userSelect">Simulated User:</label>
             <select id="userSelect">
                 <option value="">— Select a user —</option>
-                {% for display_name, rls_username in demo_users.items() %}
-                <option value="{{ rls_username }}">{{ display_name }}</option>
-                {% endfor %}
+                <% demo_users.each do |display_name, rls_username| %>
+                <option value="<%= rls_username %>"><%= display_name %></option>
+                <% end %>
             </select>
             <span class="user-badge">
                 <span class="dot"></span>
