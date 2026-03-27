@@ -1,9 +1,8 @@
 {
   "enabled": true,
   "identity_table": "Users",
-  "identity_column": "UPN",
-  "filter_table": "SalesTerritories",
-  "filter_column": "SalesTerritoryRegion",
-  "custom_lookup_dax": null,
-  "description": "Each user sees data filtered to their assigned SalesTerritories.SalesTerritoryRegion values."
+  "identity_column": "Email",
+  "filter_table": "Sales",
+  "filter_column": "Region",
+  "description": "Filters Sales data based on user region."
 }

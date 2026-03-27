@@ -1,4 +1,8 @@
 require 'sinatra'
+
+# Serve static files from ./static instead of ./public
+set :public_folder, File.dirname(__FILE__) + '/static'
+set :static, true
 require 'sinatra/json'
 require_relative 'config'
 require_relative 'powerbi_service'

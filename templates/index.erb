@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Power BI RLS Chatbot</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f6f8fa;
+            margin: 0;
+            padding: 0;
+        }
+        .topbar {
+            background: #232f3e;
+            color: #fff;
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .topbar h1 {
+            margin: 0;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+        }
+        .user-selector {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .user-badge {
+            background: #fff;
+            color: #232f3e;
+            border-radius: 1rem;
+            padding: 0.2rem 0.8rem;
+            font-size: 0.95rem;
+            margin-left: 0.5rem;
+        }
+        .main-container {
+            display: flex;
+            gap: 2rem;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .report-panel, .chat-panel {
+            background: #fff;
+            border-radius: 1rem;
+            box-shadow: 0 2px 8px #0001;
+            padding: 1.5rem;
+            flex: 1;
+            min-width: 350px;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-header {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            margin-bottom: 1rem;
+            background: #f3f4f6;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            min-height: 200px;
+        }
+        .chat-input-bar {
+            display: flex;
+            gap: 0.5rem;
+        }
+        #chatInput {
+            flex: 1;
+            padding: 0.7rem;
+            border-radius: 0.5rem;
+            border: 1px solid #ccc;
+            font-size: 1rem;
+        }
+        #sendBtn {
+            background: #232f3e;
+            color: #fff;
+            border: none;
+            border-radius: 0.5rem;
+            padding: 0 1.5rem;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #sendBtn:hover {
+            background: #005a9e;
+        }
+        .instructions {
+            margin-bottom: 1rem;
+            color: #555;
+            font-size: 1rem;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/powerbi-client@2.23.1/dist/powerbi.min.js"></script>
+</head>
+<body>
+
+    <!-- ========================= TOP BAR ========================= -->
+    <header class="topbar">
+        <h1>
+            <svg viewBox="0 0 24 24" width="28" height="28" style="margin-right:8px;"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            Power BI RLS Chatbot
+        </h1>
+        <div class="user-selector">
+            <label for="userSelect"><strong>User:</strong></label>
+            <select id="userSelect">
+                <option value="">— Select a user —</option>
+                <% demo_users.each do |display_name, rls_username| %>
+                <option value="<%= rls_username %>"><%= display_name %></option>
+                <% end %>
+            </select>
+            <span class="user-badge" id="rlsTag"></span>
+        </div>
+    </header>
+
+    <!-- ========================= MAIN ========================= -->
+    <main class="main-container" style="max-width: 600px;">
+        <section class="chat-panel" style="width:100%;">
+            <div class="panel-header">
+                <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H6l-2 2V4h16v12z"/></svg>
+                Data Chatbot (RLS-aware)
+            </div>
+            <div class="instructions">
+                <strong>Instructions:</strong> Select a user, then type your question below and press <b>Send</b> or hit <b>Enter</b>.
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="placeholder-msg" style="margin-top:40px;">
+                    <p>Select a user to start chatting.</p>
+                </div>
+            </div>
+            <div class="chat-input-bar">
+                <input type="text"
+                       id="chatInput"
+                       placeholder="Ask a question about your data…"
+                       autocomplete="off" />
+                <button id="sendBtn">
+                    Send
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <script src="/static/js/app.js?v=3"></script>
+</body>
+</html>

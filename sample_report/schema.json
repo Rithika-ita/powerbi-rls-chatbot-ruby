@@ -1,135 +1,23 @@
 {
   "tables": [
     {
-      "name": "Calendar",
+      "name": "Sales",
       "columns": [
-        "RowNumber-2662979B-1795-4F74-8F37-6A1BA8059B61",
-        "DateKey",
         "Date",
-        "Month",
-        "MonthNumberOfYear",
-        "Quarter",
-        "Year",
-        "Semester"
+        "Amount",
+        "Region",
+        "Product"
       ],
-      "measures": []
+      "measures": [
+        "Total Sales"
+      ]
     },
     {
       "name": "Customers",
       "columns": [
-        "RowNumber-2662979B-1795-4F74-8F37-6A1BA8059B61",
-        "CustomerKey",
-        "FirstName",
-        "MiddleName",
-        "LastName",
-        "MaritalStatus"
-      ],
-      "measures": []
-    },
-    {
-      "name": "Geography",
-      "columns": [
-        "RowNumber-2662979B-1795-4F74-8F37-6A1BA8059B61",
-        "GeographyKey",
-        "City",
-        "StateCode",
-        "CountryCode",
-        "CountryName",
-        "PostalCode",
-        "SalesTerritoryKey"
-      ],
-      "measures": []
-    },
-    {
-      "name": "Products",
-      "columns": [
-        "RowNumber-2662979B-1795-4F74-8F37-6A1BA8059B61",
-        "ProductKey",
-        "ProductName",
-        "StandardCost",
-        "Color",
-        "ListPrice",
-        "Size",
-        "DealerPrice",
-        "ModelName",
-        "Description",
-        "HasImage",
-        "ImageUrl",
-        "Product_Sub_Category",
-        "Product_Category"
-      ],
-      "measures": []
-    },
-    {
-      "name": "Promotions",
-      "columns": [
-        "RowNumber-2662979B-1795-4F74-8F37-6A1BA8059B61",
-        "PromotionKey",
-        "PromotionAlternateKey",
-        "PromotionName",
-        "DiscountPct",
-        "PromotionType",
-        "PromotionCategory",
-        "StartDate",
-        "EndDate"
-      ],
-      "measures": []
-    },
-    {
-      "name": "Roles",
-      "columns": [
-        "RowNumber-2662979B-1795-4F74-8F37-6A1BA8059B61",
-        "Name",
-        "SalesTerritoryRegion"
-      ],
-      "measures": []
-    },
-    {
-      "name": "Sales",
-      "columns": [
-        "RowNumber-2662979B-1795-4F74-8F37-6A1BA8059B61",
-        "ProductKey",
-        "OrderDateKey",
-        "CustomerKey",
-        "PromotionKey",
-        "CurrencyKey",
-        "SalesTerritoryKey",
-        "SalesOrderNumber",
-        "SalesOrderLineNumber",
-        "RevisionNumber",
-        "OrderQuantity",
-        "UnitPrice",
-        "ExtendedAmount",
-        "UnitPriceDiscountPct",
-        "DiscountAmount",
-        "ProductStandardCost",
-        "TotalProductCost",
-        "SalesAmount",
-        "TaxAmt",
-        "Freight",
-        "CarrierTrackingNumber",
-        "CustomerPONumber",
-        "OrderDate",
-        "GeographyKey"
-      ],
-      "measures": []
-    },
-    {
-      "name": "SalesTerritories",
-      "columns": [
-        "RowNumber-2662979B-1795-4F74-8F37-6A1BA8059B61",
-        "SalesTerritoryKey",
-        "SalesTerritoryRegion",
-        "SalesTerritoryImageURL"
-      ],
-      "measures": []
-    },
-    {
-      "name": "Users",
-      "columns": [
-        "RowNumber-2662979B-1795-4F74-8F37-6A1BA8059B61",
-        "UPN",
-        "Name"
+        "CustomerID",
+        "CustomerName",
+        "Region"
       ],
       "measures": []
     }
