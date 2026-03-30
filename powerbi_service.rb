@@ -1,4 +1,3 @@
-require 'msal'
 require 'rest-client'
 require 'json'
 require_relative 'config'
@@ -13,57 +12,59 @@ module PowerBIService
     Settings.logger
   end
 
-  def msal_app
-    @msal_app ||= Msal::ConfidentialClientApplication.new(
-      Settings.azure_client_id,
-      Settings.azure_client_secret,
-      "https://login.microsoftonline.com/#{Settings.azure_tenant_id}"
-    )
-  end
-
+  # Acquire token using OAuth2 client_credentials flow (service principal)
   def get_access_token
-    result = msal_app.acquire_token_for_client(scopes: [PBI_RESOURCE])
-    raise "Token acquisition failed: #{result['error_description']}" unless result['access_token']
-    result['access_token']
+    token_url = "https://login.microsoftonline.com/#{Settings.azure_tenant_id}/oauth2/v2.0/token"
+    logger.info "Requesting access token from: #{token_url}"
+
+    response = RestClient.post(token_url, {
+      grant_type: 'client_credentials',
+      client_id: Settings.azure_client_id,
+      client_secret: Settings.azure_client_secret,
+      scope: PBI_RESOURCE
+    })
+
+    data = JSON.parse(response.body)
+    raise "Token acquisition failed: #{data['error_description']}" unless data['access_token']
+    logger.info "Access token acquired successfully"
+    data['access_token']
+  rescue RestClient::ExceptionWithResponse => e
+    logger.error "Token request failed #{e.response.code}: #{e.response.body}"
+    raise "Token acquisition failed: #{e.response.body}"
   end
 
   def get_azcli_token
-    # Shelling out to az cli as there's no direct equivalent to AzureCliCredential in Ruby msal easily
     token_json = `az account get-access-token --resource https://analysis.windows.net/powerbi/api/ --output json`
     raise "Failed to get token from Azure CLI. Ensure you are logged in with 'az login'." unless $?.success?
     JSON.parse(token_json)['accessToken']
   end
 
-  def ropc_app
-    @ropc_app ||= Msal::PublicClientApplication.new(
-      Settings.azure_client_id,
-      "https://login.microsoftonline.com/#{Settings.azure_tenant_id}"
-    )
-  end
-
+  # Acquire token using OAuth2 ROPC flow (username/password)
   def get_ropc_token
-    # MSAL Ruby might have different API for acquire_token_by_username_password
-    # Checking common MSAL Ruby patterns. Usually it's acquire_token_by_username_password(username, password, scopes:)
-    
-    # Try cache first if msal-ruby supports it (it usually does via token_cache)
-    accounts = ropc_app.get_accounts(Settings.dax_user_email)
-    if accounts.any?
-      result = ropc_app.acquire_token_silent([PBI_RESOURCE], accounts.first)
-      return result['access_token'] if result && result['access_token']
+    if Settings.dax_user_email.to_s.strip.empty? || Settings.dax_user_password.to_s.strip.empty?
+      raise "ROPC token failed: DAX_USER_EMAIL and DAX_USER_PASSWORD must be set when DAX_AUTH_MODE=ropc."
     end
 
-    result = ropc_app.acquire_token_by_username_password(
-      Settings.dax_user_email,
-      Settings.dax_user_password,
-      scopes: [PBI_RESOURCE]
-    )
-    
-    unless result['access_token']
-      raise "ROPC token failed: #{result['error_description']}. " \
+    token_url = "https://login.microsoftonline.com/#{Settings.azure_tenant_id}/oauth2/v2.0/token"
+
+    response = RestClient.post(token_url, {
+      grant_type: 'password',
+      client_id: Settings.azure_client_id,
+      username: Settings.dax_user_email,
+      password: Settings.dax_user_password,
+      scope: PBI_RESOURCE
+    })
+
+    data = JSON.parse(response.body)
+    unless data['access_token']
+      raise "ROPC token failed: #{data['error_description']}. " \
             "Ensure DAX_USER_EMAIL/PASSWORD are correct, the account has no MFA, " \
             "and the app registration allows public client flows."
     end
-    result['access_token']
+    data['access_token']
+  rescue RestClient::ExceptionWithResponse => e
+    logger.error "ROPC token request failed #{e.response.code}: #{e.response.body}"
+    raise "ROPC token failed: #{e.response.body}"
   end
 
   def get_dax_token
@@ -74,7 +75,7 @@ module PowerBIService
     when 'azcli'
       get_azcli_token
     else
-      raise "Unknown DAX_AUTH_MODE '#{Settings.dax_auth_mode}'. Supported: 'azcli', 'ropc'."
+      raise "Unknown DAX_AUTH_MODE '#{Settings.dax_auth_mode}'. Supported: 'ropc', 'azcli'."
     end
   end
 
@@ -85,7 +86,7 @@ module PowerBIService
       datasets: [{ id: Settings.pbi_dataset_id }],
       reports: [{ id: Settings.pbi_report_id, allowEdit: false }],
       targetWorkspaces: [{ id: Settings.pbi_workspace_id }],
-      datasetsAccessLevel: "ReadWriteReshareExplore",
+      datasetsAccessLevel: "Read",
       identities: [
         {
           username: rls_username,
@@ -96,22 +97,30 @@ module PowerBIService
     }
 
     logger.info "GenerateToken request URL: #{url}"
-    
-    response = RestClient.post(url, body.to_json, {
-      Authorization: "Bearer #{access_token}",
-      content_type: :json,
-      accept: :json
-    })
-    
-    data = JSON.parse(response.body)
-    {
-      embedToken: data["token"],
-      embedUrl: "https://app.powerbi.com/reportEmbed?reportId=#{Settings.pbi_report_id}&groupId=#{Settings.pbi_workspace_id}",
-      reportId: Settings.pbi_report_id
-    }
-  rescue RestClient::ExceptionWithResponse => e
-    logger.error "GenerateToken failed #{e.response.code}: #{e.response.body}"
-    raise e
+    logger.info "GenerateToken request body: #{body.to_json}"
+
+    begin
+      response = RestClient.post(url, body.to_json, {
+        Authorization: "Bearer #{access_token}",
+        content_type: :json,
+        accept: :json
+      })
+      data = JSON.parse(response.body)
+      {
+        embedToken: data["token"],
+        embedUrl: "https://app.powerbi.com/reportEmbed?reportId=#{Settings.pbi_report_id}&groupId=#{Settings.pbi_workspace_id}",
+        reportId: Settings.pbi_report_id
+      }
+    rescue RestClient::ExceptionWithResponse => e
+      logger.error "GenerateToken failed #{e.response.code}: #{e.response.body}"
+      logger.error "Request body was: #{body.to_json}"
+      logger.error "Request headers: Authorization: Bearer <hidden>, content_type: json, accept: json"
+      raise e
+    rescue => e
+      logger.error "Unexpected error in generate_embed_token: #{e.class} - #{e.message}"
+      logger.error e.backtrace.join("\n")
+      raise e
+    end
   end
 
   def execute_dax(dax_query, rls_username: "")

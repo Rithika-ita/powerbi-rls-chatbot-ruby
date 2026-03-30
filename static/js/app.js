@@ -25,6 +25,7 @@ const chatMessages     = document.getElementById('chatMessages');
 const chatInput        = document.getElementById('chatInput');
 const sendBtn          = document.getElementById('sendBtn');
 const rlsTag           = document.getElementById('rlsTag');
+const rlsTagReport     = document.getElementById('rlsTagReport');
 
 // ---------------------------------------------------------------------------
 // Initialise
@@ -56,6 +57,7 @@ async function onUserChange() {
     };
 
     rlsTag.textContent = `RLS: ${currentUser.rlsUsername}`;
+    if (rlsTagReport) rlsTagReport.textContent = `RLS: ${currentUser.rlsUsername}`;
 
     // Reset chat
     chatHistory = [];

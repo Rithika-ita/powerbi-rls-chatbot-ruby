@@ -22,7 +22,6 @@ GEM
       logger
       mime-types-data (~> 3.2025, >= 3.2025.0507)
     mime-types-data (3.2026.0317)
-    msal (0.1.0)
     multi_json (1.19.1)
     multipart-post (2.4.1)
     mustermann (3.0.4)
@@ -76,7 +75,6 @@ PLATFORMS
 DEPENDENCIES
   dotenv
   json
-  msal
   puma
   rackup (~> 2.3)
   rest-client
@@ -98,7 +96,6 @@ CHECKSUMS
   logger (1.7.0) sha256=196edec7cc44b66cfb40f9755ce11b392f21f7967696af15d274dde7edff0203
   mime-types (3.7.0) sha256=dcebf61c246f08e15a4de34e386ebe8233791e868564a470c3fe77c00eed5e56
   mime-types-data (3.2026.0317) sha256=77f078a4d8631d52b842ba77099734b06eddb7ad339d792e746d2272b67e511b
-  msal (0.1.0) sha256=0b769498d31d6510df1971259fed4189951dbfc7ef51c638389f851934c88e90
   multi_json (1.19.1) sha256=7aefeff8f2c854bf739931a238e4aea64592845e0c0395c8a7d2eea7fdd631b7
   multipart-post (2.4.1) sha256=9872d03a8e552020ca096adadbf5e3cb1cd1cdd6acd3c161136b8a5737cdb4a8
   mustermann (3.0.4) sha256=85fadcb6b3c6493a8b511b42426f904b7f27b282835502233dd154daab13aa22

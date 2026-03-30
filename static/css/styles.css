@@ -22,6 +22,7 @@
 
 body {
     font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 16px;
     background: var(--bg);
     color: var(--text);
     height: 100vh;
@@ -46,7 +47,7 @@ body {
 }
 
 .topbar h1 {
-    font-size: 18px;
+    font-size: 22px;
     font-weight: 600;
     display: flex;
     align-items: center;
@@ -61,13 +62,13 @@ body {
     gap: 10px;
 }
 
-.user-selector label { font-size: 13px; opacity: .85; }
+.user-selector label { font-size: 15px; opacity: .85; }
 
 .user-selector select {
-    padding: 5px 12px;
+    padding: 6px 14px;
     border-radius: 6px;
     border: none;
-    font-size: 13px;
+    font-size: 15px;
     background: rgba(255,255,255,.15);
     color: #fff;
     cursor: pointer;
@@ -79,7 +80,7 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-size: 12px;
+    font-size: 14px;
     background: rgba(255,255,255,.12);
     padding: 4px 10px;
     border-radius: 20px;
@@ -113,16 +114,16 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 18px;
+    padding: 12px 18px;
     background: var(--card);
     border-bottom: 1px solid var(--border);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     color: var(--pbi-blue);
 }
 
 .report-panel .panel-header .rls-tag {
-    font-size: 11px;
+    font-size: 13px;
     background: #dbeafe;
     color: var(--pbi-blue);
     padding: 3px 10px;
@@ -157,7 +158,7 @@ body {
     margin-bottom: 16px;
 }
 
-.placeholder-msg p { margin-top: 8px; font-size: 14px; }
+.placeholder-msg p { margin-top: 8px; font-size: 16px; }
 
 /* ---- Chat Panel -------------------------------------------------------- */
 
@@ -174,10 +175,10 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 18px;
+    padding: 12px 18px;
     background: var(--card);
     border-bottom: 1px solid var(--border);
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 600;
     color: var(--pbi-blue);
 }
@@ -199,10 +200,10 @@ body {
 
 .message {
     max-width: 90%;
-    padding: 10px 14px;
+    padding: 12px 16px;
     border-radius: var(--radius);
-    font-size: 13.5px;
-    line-height: 1.55;
+    font-size: 16px;
+    line-height: 1.6;
     word-wrap: break-word;
     box-shadow: var(--shadow);
 }
@@ -226,7 +227,7 @@ body {
     padding: 10px 12px;
     border-radius: 6px;
     font-family: 'Cascadia Code', 'Fira Code', monospace;
-    font-size: 12px;
+    font-size: 14px;
     overflow-x: auto;
     white-space: pre-wrap;
 }
@@ -234,7 +235,7 @@ body {
 .message.bot table {
     margin-top: 8px;
     border-collapse: collapse;
-    font-size: 12px;
+    font-size: 14px;
     width: 100%;
 }
 
@@ -252,7 +253,7 @@ body {
 
 .message .timestamp {
     display: block;
-    font-size: 10px;
+    font-size: 12px;
     color: var(--text-muted);
     margin-top: 4px;
     text-align: right;
@@ -293,10 +294,10 @@ body {
 
 .chat-input-bar input {
     flex: 1;
-    padding: 10px 14px;
+    padding: 12px 16px;
     border: 1px solid var(--border);
     border-radius: 8px;
-    font-size: 13.5px;
+    font-size: 16px;
     outline: none;
     transition: border-color .2s;
 }
@@ -304,12 +305,12 @@ body {
 .chat-input-bar input:focus { border-color: var(--pbi-light); }
 
 .chat-input-bar button {
-    padding: 9px 18px;
+    padding: 12px 22px;
     background: var(--pbi-blue);
     color: #fff;
     border: none;
     border-radius: 8px;
-    font-size: 13.5px;
+    font-size: 16px;
     cursor: pointer;
     transition: background .2s;
     display: flex;
@@ -340,13 +341,13 @@ body {
     background: linear-gradient(135deg, #eff6ff, #f0fdf4);
     border: 1px solid #bfdbfe;
     border-radius: var(--radius);
-    padding: 16px;
-    font-size: 13px;
+    padding: 18px;
+    font-size: 15px;
     line-height: 1.6;
 }
 
 .welcome-card h3 {
-    font-size: 14px;
+    font-size: 17px;
     margin-bottom: 6px;
     color: var(--pbi-blue);
 }
