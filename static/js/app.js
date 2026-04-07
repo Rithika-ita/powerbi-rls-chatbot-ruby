@@ -149,7 +149,18 @@ function addMessage(role, content) {
     // Simple Markdown rendering for bot messages
     let html = content;
     if (role === 'bot') {
-        html = renderMarkdown(content);
+        // Strip ALL HTML tags and any DAX code the model included.
+        // 1. Remove every HTML tag (keeps inner text)
+        // 2. Remove "-- Generated DAX" and everything after
+        // 3. Remove any remaining EVALUATE block
+        const clean = content
+            .replace(/<\/?[a-z][^>]*>/gi, '')     // all HTML tags
+            .replace(/--\s*Generated\s+DAX[\s\S]*$/i, '')  // DAX comment tail
+            .replace(/\bEVALUATE\b[\s\S]*$/i, '')          // raw EVALUATE tail
+            .replace(/```[\s\S]*?```/g, '')                // fenced code blocks
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+        html = renderMarkdown(clean);
     }
 
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -200,13 +211,12 @@ async function onSend() {
 
         hideTyping();
 
-        // Optionally show DAX
         let answer = data.answer || 'Sorry, I could not generate an answer.';
-        if (data.dax) {
-            answer += `\n\n<div class="dax-block">-- Generated DAX\n${escapeHtml(data.dax)}</div>`;
-        }
 
         addMessage('bot', answer);
+        if (Array.isArray(data.data) && data.data.length > 0) {
+            addResultPreview(data.data);
+        }
         chatHistory.push({ role: 'assistant', content: data.answer });
     } catch (err) {
         hideTyping();
@@ -230,8 +240,10 @@ function renderMarkdown(text) {
     // Very basic Markdown → HTML (bold, italic, code, tables, line breaks)
     let html = escapeHtml(text);
 
-    // Code blocks
-    html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<div class="dax-block">$2</div>');
+    // Strip code blocks (DAX/SQL shown separately in result preview)
+    html = html.replace(/```[\s\S]*?```/g, '');
+    // Collapse multiple blank lines left after stripping code blocks
+    html = html.replace(/\n{3,}/g, '\n\n');
 
     // Bold
     html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
@@ -270,4 +282,52 @@ function renderMarkdown(text) {
     html = html.replace(/\n/g, '<br>');
 
     return html;
+}
+
+function addResultPreview(rows) {
+    const maxRows = 25;
+    const previewRows = rows.slice(0, maxRows);
+    const columns = Object.keys(previewRows[0] || {});
+
+    if (columns.length === 0) return;
+
+    const div = document.createElement('div');
+    div.className = 'message bot result-preview';
+
+    const tableHead = columns.map((col) => `<th>${escapeHtml(col)}</th>`).join('');
+    const tableBody = previewRows.map((row) => {
+        const cells = columns.map((col) => `<td>${formatCellValue(row[col])}</td>`).join('');
+        return `<tr>${cells}</tr>`;
+    }).join('');
+
+    const footer = rows.length > maxRows
+        ? `<div class="result-preview-note">Showing first ${maxRows.toLocaleString()} of ${rows.length.toLocaleString()} rows.</div>`
+        : `<div class="result-preview-note">Showing ${rows.length.toLocaleString()} row${rows.length === 1 ? '' : 's'}.</div>`;
+
+    div.innerHTML = `
+        <div class="result-preview-meta">
+            <span class="meta-pill">Rows: ${rows.length.toLocaleString()}</span>
+            <span class="meta-pill">Columns: ${columns.length.toLocaleString()}</span>
+        </div>
+        <details open>
+            <summary>Data preview</summary>
+            <div class="result-preview-table-wrap">
+                <table>
+                    <thead><tr>${tableHead}</tr></thead>
+                    <tbody>${tableBody}</tbody>
+                </table>
+            </div>
+            ${footer}
+        </details>
+        <span class="timestamp">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+    `;
+
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function formatCellValue(value) {
+    if (value === null || value === undefined) return '<em>-</em>';
+    if (typeof value === 'number') return Number.isFinite(value) ? value.toLocaleString() : escapeHtml(String(value));
+    return escapeHtml(String(value));
 }

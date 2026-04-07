@@ -5,7 +5,7 @@ require_relative 'config'
 module PowerBIService
   extend self
 
-  PBI_RESOURCE = "https://analysis.windows.net/powerbi/api/.default"
+  PBI_RESOURCE = "https://api.fabric.microsoft.com/.default"
   PBI_BASE = "https://api.powerbi.com/v1.0/myorg"
 
   def logger
@@ -34,7 +34,7 @@ module PowerBIService
   end
 
   def get_azcli_token
-    token_json = `az account get-access-token --resource https://analysis.windows.net/powerbi/api/ --output json`
+    token_json = `az account get-access-token --resource https://api.fabric.microsoft.com/ --output json`
     raise "Failed to get token from Azure CLI. Ensure you are logged in with 'az login'." unless $?.success?
     JSON.parse(token_json)['accessToken']
   end
@@ -125,7 +125,8 @@ module PowerBIService
 
   def execute_dax(dax_query, rls_username: "")
     token = get_dax_token
-    final_dax = rls_username.empty? ? dax_query : wrap_dax_with_rls(dax_query, rls_username, token)
+    normalized_dax = normalize_dax_query(dax_query)
+    final_dax = rls_username.empty? ? normalized_dax : wrap_dax_with_rls(normalized_dax, rls_username, token)
 
     url = "#{PBI_BASE}/groups/#{Settings.pbi_workspace_id}/datasets/#{Settings.pbi_dataset_id}/executeQueries"
     body = {
@@ -148,6 +149,117 @@ module PowerBIService
     raise e
   end
 
+  # Normalize common model-generated DAX mistakes so valid intent still executes.
+  def normalize_dax_query(dax_query)
+    return dax_query if dax_query.to_s.strip.empty?
+
+    stripped = dax_query.strip
+    match = stripped.match(/\AEVALUATE\s+SUMMARIZECOLUMNS\((.*)\)\s*\z/im)
+    return dax_query unless match
+
+    args = split_top_level_args(match[1])
+    return dax_query if args.empty?
+
+    metric_args = []
+    filter_args = []
+    i = 0
+
+    while i < args.length
+      arg = args[i].strip
+      nxt = args[i + 1]&.strip
+
+      if string_literal?(arg) && !nxt.nil?
+        metric_args << arg
+        metric_args << nxt
+        i += 2
+        next
+      end
+
+      if looks_like_groupby_column?(arg)
+        metric_args << arg
+        i += 1
+        next
+      end
+
+      if looks_like_filter_table_expression?(arg)
+        filter_args << arg
+        i += 1
+        next
+      end
+
+      if looks_like_boolean_predicate?(arg)
+        filter_args << "KEEPFILTERS(#{arg})"
+        i += 1
+        next
+      end
+
+      metric_args << arg
+      i += 1
+    end
+
+    return dax_query if filter_args.empty?
+
+    inner = "SUMMARIZECOLUMNS(#{metric_args.join(', ')})"
+    "EVALUATE\nCALCULATETABLE(\n    #{inner},\n    #{filter_args.join(",\n    ")}\n)"
+  rescue => e
+    logger.warn "DAX normalization skipped: #{e.class} - #{e.message}"
+    dax_query
+  end
+
+  def split_top_level_args(arg_string)
+    args = []
+    current = +""
+    depth = 0
+    in_double_quote = false
+    in_single_quote = false
+
+    arg_string.each_char do |ch|
+      if ch == '"' && !in_single_quote
+        in_double_quote = !in_double_quote
+        current << ch
+        next
+      end
+
+      if ch == "'" && !in_double_quote
+        in_single_quote = !in_single_quote
+        current << ch
+        next
+      end
+
+      if !in_double_quote && !in_single_quote
+        depth += 1 if ch == '('
+        depth -= 1 if ch == ')' && depth > 0
+
+        if ch == ',' && depth.zero?
+          args << current.strip unless current.strip.empty?
+          current = +""
+          next
+        end
+      end
+
+      current << ch
+    end
+
+    args << current.strip unless current.strip.empty?
+    args
+  end
+
+  def string_literal?(arg)
+    arg.start_with?('"') && arg.end_with?('"') && arg.length >= 2
+  end
+
+  def looks_like_groupby_column?(arg)
+    arg.match?(/\A'[^']+'\[[^\]]+\]\z/)
+  end
+
+  def looks_like_filter_table_expression?(arg)
+    arg.match?(/\A(FILTER|VALUES|ALL|ALLSELECTED|CALCULATETABLE)\s*\(/i)
+  end
+
+  def looks_like_boolean_predicate?(arg)
+    arg.match?(/\A'[^']+'\[[^\]]+\]\s*(=|<>|>=|<=|>|<)\s*.+\z/)
+  end
+
   def get_user_filter_values(rls_username, token)
     @user_filter_cache ||= {}
     return @user_filter_cache[rls_username] if @user_filter_cache[rls_username]
@@ -167,7 +279,9 @@ module PowerBIService
           end
 
     url = "#{PBI_BASE}/groups/#{Settings.pbi_workspace_id}/datasets/#{Settings.pbi_dataset_id}/executeQueries"
-    
+
+    logger.info "RLS lookup DAX for #{rls_username}:\n#{dax}"
+
     begin
       response = RestClient.post(url, {
         queries: [{ query: dax }],
@@ -184,12 +298,16 @@ module PowerBIService
       values = rows.map do |r|
         (r["#{ft}[#{fc}]"] || r["'#{ft}'[#{fc}]"] || r["[#{fc}]"])&.to_s
       end.compact
-      
+
       @user_filter_cache[rls_username] = values
       logger.info "User #{rls_username} filter values for #{ft}[#{fc}]: #{values}"
       values
+    rescue RestClient::ExceptionWithResponse => e
+      logger.warn "User filter lookup failed #{e.response.code}: #{e.response.body[0..500]}"
+      logger.warn "Failed DAX was:\n#{dax}"
+      []
     rescue => e
-      logger.warn "User filter lookup failed: #{e}"
+      logger.warn "User filter lookup failed: #{e.class} - #{e.message}"
       []
     end
   end

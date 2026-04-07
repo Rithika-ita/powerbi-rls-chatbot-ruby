@@ -1,8 +1,8 @@
 {
   "enabled": true,
-  "identity_table": "Users",
-  "identity_column": "Email",
-  "filter_table": "Sales",
+  "identity_table": "Dim_User",
+  "identity_column": "Username",
+  "filter_table": "Dim_Portfolio",
   "filter_column": "Region",
-  "description": "Filters Sales data based on user region."
+  "description": "Auto-detected RLS mapping from schema."
 }

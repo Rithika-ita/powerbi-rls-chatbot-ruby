@@ -349,6 +349,86 @@ password. (Not implemented in this accelerator — intended as a next step.)
 
 ---
 
+## Using Microsoft Fabric Data Agent
+
+If your workspace is on **Microsoft Fabric (F SKU)** with a **Premium Per User (PPU)** or **Premium capacity**, you can use a **Fabric Data Agent** instead of Azure OpenAI.
+
+### Why Use a Fabric Data Agent?
+
+| Aspect | Fabric Data Agent | Azure OpenAI |
+|--------|-------------------|--------------|
+| **Setup complexity** | Simpler — agent handles full flow | Requires separate Azure OpenAI resource |
+| **Integration** | Native to Fabric; uses Fabric auth | External dependency |
+| **Cost** | Included with Fabric/PPU | Separate billing for tokens |
+| **Latency** | Optimized for Fabric datasets | Network round-trips to Azure OpenAI |
+| **RLS awareness** | Built-in Fabric RLS support | Requires custom wrapping |
+
+### Setting Up Fabric Data Agent
+
+1. **In Fabric**: Create a Data Agent connected to your Fabric semantic model
+   - Go to **Fabric workspace** → **Data Engineering** or **Data Science**
+   - Create a **new Data Agent** and connect it to your dataset
+   - Configure it to understand your tables, columns, and RLS model
+
+2. **Publish the agent and copy the URL**:
+   - Right-click the agent → **Get shareable link** or **Publish**
+   - The URL will look like:
+     ```
+     https://api.fabric.microsoft.com/v1/workspaces/{workspace-id}/dataagents/{agent-id}/aiassistant/openai
+     ```
+
+3. **Update `.env`**:
+   ```env
+   USE_FABRIC_DATA_AGENT=true
+   FABRIC_DATA_AGENT_URL=https://api.fabric.microsoft.com/v1/workspaces/YOUR_WORKSPACE_ID/dataagents/YOUR_AGENT_ID/aiassistant/openai
+   
+   # Keep DAX_AUTH_MODE as azcli or ropc (used for token acquisition)
+   DAX_AUTH_MODE=azcli
+   
+   # Optional: keep Azure OpenAI settings as backup (ignored if Data Agent is enabled)
+   AZURE_OPENAI_ENDPOINT=...
+   AZURE_OPENAI_DEPLOYMENT=...
+   ```
+
+4. **Run the app**:
+   ```bash
+   ruby app.rb
+   ```
+
+### How It Works with Fabric Data Agent
+
+```
+User: "What were my sales last month?"
+  ↓
+POST /api/chat { message, rls_username: "alice@contoso.com" }
+  ↓
+[Fabric Data Agent]
+  ├─ Receives question + RLS context (user, identity table, filter table)
+  ├─ Generates DAX query
+  ├─ Executes DAX (RLS-filtered within Fabric)
+  └─ Returns { dax, results, natural_language_answer }
+  ↓
+Response: "Your sales last month were $12,500 in the West region."
+```
+
+### Environment Variables for Fabric Data Agent
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `USE_FABRIC_DATA_AGENT` | No | `false` | Set to `true` to enable Fabric Data Agent |
+| `FABRIC_DATA_AGENT_URL` | Yes (if agent enabled) | — | Published endpoint of your Fabric Data Agent |
+
+### Troubleshooting Fabric Data Agent
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| Data Agent returns 401 | Token doesn't have permission to access agent | Ensure `az login` session is authorized for the workspace |
+| Data Agent returns 404 | Invalid agent URL or ID | Copy the exact URL from Fabric portal |
+| Data Agent returns empty results | Agent not trained on schema or table names wrong | Re-configure the agent in Fabric to match your dataset |
+| DAX execution fails | Agent-generated DAX has syntax errors | Check agent logs in Fabric and adjust agent configuration |
+
+---
+
 ## Environment Variables Reference
 
 All settings live in `.env` (copied from `.env.example`):

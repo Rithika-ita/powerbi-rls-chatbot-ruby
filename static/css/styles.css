@@ -220,18 +220,6 @@ body {
     border-bottom-left-radius: 2px;
 }
 
-.message.bot .dax-block {
-    margin-top: 8px;
-    background: #1e293b;
-    color: #e2e8f0;
-    padding: 10px 12px;
-    border-radius: 6px;
-    font-family: 'Cascadia Code', 'Fira Code', monospace;
-    font-size: 14px;
-    overflow-x: auto;
-    white-space: pre-wrap;
-}
-
 .message.bot table {
     margin-top: 8px;
     border-collapse: collapse;
@@ -257,6 +245,49 @@ body {
     color: var(--text-muted);
     margin-top: 4px;
     text-align: right;
+}
+
+.result-preview {
+    width: 100%;
+    max-width: 100%;
+}
+
+.result-preview-meta {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.meta-pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    color: var(--pbi-blue);
+    background: #dbeafe;
+    border: 1px solid #bfdbfe;
+    border-radius: 999px;
+    padding: 2px 10px;
+}
+
+.result-preview details {
+    margin-top: 2px;
+}
+
+.result-preview summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 8px;
+}
+
+.result-preview-table-wrap {
+    overflow-x: auto;
+}
+
+.result-preview-note {
+    margin-top: 8px;
+    color: var(--text-muted);
+    font-size: 12px;
 }
 
 /* Typing indicator */

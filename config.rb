@@ -77,7 +77,7 @@ module Settings
         JSON.parse(raw)
       else
         {
-          "Alice (West Region)" => "akoganti@ITAGROUP.com",
+          "Alice (West Region)" => "rmusku@ITAGROUP.com",
           "Bob (East Region)" => "aslagle@ITAGROUP.com",
           "Carlos (All Regions)" => "carlos@contoso.com"
         }
