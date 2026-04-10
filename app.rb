@@ -58,3 +58,28 @@ end
 get '/health' do
   json({ status: 'ok' })
 end
+
+post '/api/reset-thread' do
+  payload = JSON.parse(request.body.read)
+  rls_username = payload['rls_username']
+  ChatEngine.reset_agent_thread(rls_username)
+  json({ status: 'ok', message: "Thread reset for #{rls_username}" })
+end
+
+# ── RLS Diagnostic ────────────────────────────────────────────────────────
+# POST /api/diagnose-rls { "message": "...", "rls_username": "..." }
+# Sends the same query with and without RLS context to prove whether
+# the text-based RLS filter is the root cause.
+post '/api/diagnose-rls' do
+  payload = JSON.parse(request.body.read)
+  message = payload['message']
+  rls_username = payload['rls_username']
+
+  begin
+    result = ChatEngine.diagnose_rls(message, rls_username)
+    json result
+  rescue => e
+    status 500
+    json({ error: e.message })
+  end
+end

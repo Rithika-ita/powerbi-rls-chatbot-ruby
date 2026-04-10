@@ -39,32 +39,10 @@ module PowerBIService
     JSON.parse(token_json)['accessToken']
   end
 
-  # Acquire token using OAuth2 ROPC flow (username/password)
+  # DEPRECATED: This project no longer supports ROPC.
+  # Keeping stub for backward compatibility if needed.
   def get_ropc_token
-    if Settings.dax_user_email.to_s.strip.empty? || Settings.dax_user_password.to_s.strip.empty?
-      raise "ROPC token failed: DAX_USER_EMAIL and DAX_USER_PASSWORD must be set when DAX_AUTH_MODE=ropc."
-    end
-
-    token_url = "https://login.microsoftonline.com/#{Settings.azure_tenant_id}/oauth2/v2.0/token"
-
-    response = RestClient.post(token_url, {
-      grant_type: 'password',
-      client_id: Settings.azure_client_id,
-      username: Settings.dax_user_email,
-      password: Settings.dax_user_password,
-      scope: PBI_RESOURCE
-    })
-
-    data = JSON.parse(response.body)
-    unless data['access_token']
-      raise "ROPC token failed: #{data['error_description']}. " \
-            "Ensure DAX_USER_EMAIL/PASSWORD are correct, the account has no MFA, " \
-            "and the app registration allows public client flows."
-    end
-    data['access_token']
-  rescue RestClient::ExceptionWithResponse => e
-    logger.error "ROPC token request failed #{e.response.code}: #{e.response.body}"
-    raise "ROPC token failed: #{e.response.body}"
+    raise "ROPC flow removed. Use Azure CLI auth or client credentials paths configured for this app."
   end
 
   def get_dax_token

@@ -50,20 +50,34 @@ module Settings
     ENV['DAX_USER_PASSWORD'] || ""
   end
 
-  def azure_openai_endpoint
-    ENV['AZURE_OPENAI_ENDPOINT']
+  def foundry_endpoint
+    ENV['FOUNDRY_ENDPOINT']
   end
 
-  def azure_openai_api_key
-    ENV['AZURE_OPENAI_API_KEY'] || ""
+  def foundry_model
+    ENV['FOUNDRY_MODEL']
   end
 
-  def azure_openai_deployment
-    ENV['AZURE_OPENAI_DEPLOYMENT'] || "gpt-4o"
+  def foundry_agent_id
+    ENV['FOUNDRY_AGENT_ID']
   end
 
-  def azure_openai_api_version
-    ENV['AZURE_OPENAI_API_VERSION'] || "2024-12-01-preview"
+  def foundry_scope
+    # Foundry project endpoints expect audience https://ai.azure.com
+    ENV['FOUNDRY_SCOPE'] || 'https://ai.azure.com/.default'
+  end
+
+  def foundry_rls_context_mode
+    (ENV['FOUNDRY_RLS_CONTEXT_MODE'] || 'plain').downcase
+  end
+
+  def foundry_reuse_threads?
+    raw = (ENV['FOUNDRY_REUSE_THREADS'] || 'false').downcase
+    %w[1 true yes on].include?(raw)
+  end
+
+  def use_foundry_endpoint?
+    true  # Always Foundry-only for this deployment
   end
 
   def app_secret_key
@@ -77,12 +91,29 @@ module Settings
         JSON.parse(raw)
       else
         {
-          "Alice (West Region)" => "rmusku@ITAGROUP.com",
+          "Alice (West Region)" => "rmusku@itagroup.com",
           "Bob (East Region)" => "aslagle@ITAGROUP.com",
           "Carlos (All Regions)" => "carlos@contoso.com"
         }
       end
     end
+  end
+
+  # Per-user passwords for ROPC → OBO flow.
+  # Stored as JSON in USER_PASSWORDS env var:
+  #   USER_PASSWORDS={"user@domain.com":"password1","user2@domain.com":"password2"}
+  def user_passwords
+    @user_passwords ||= begin
+      raw = ENV['USER_PASSWORDS']
+      raw ? JSON.parse(raw) : {}
+    rescue => e
+      logger.error "Failed to parse USER_PASSWORDS: #{e.message}"
+      {}
+    end
+  end
+
+  def user_password_for(email)
+    user_passwords[email]
   end
 
   def rls_config
