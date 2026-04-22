@@ -40,15 +40,67 @@ post '/api/embed-token' do
   end
 end
 
+post '/api/chat/generate-dax' do
+  payload = JSON.parse(request.body.read)
+  message = payload['message']
+  rls_username = payload['rls_username']
+  history = payload['history'] || []
+
+  begin
+    result = ChatEngine.generate_dax(message, rls_username, history)
+    json result
+  rescue => e
+    status 500
+    json({ error: e.message })
+  end
+end
+
+post '/api/chat/execute-dax' do
+  payload = JSON.parse(request.body.read)
+  dax = payload['dax']
+  rls_username = payload['rls_username'].to_s
+
+  begin
+    rows = PowerBIService.execute_dax(dax, rls_username: rls_username)
+    json({ results: rows })
+  rescue => e
+    status 500
+    json({ error: e.message })
+  end
+end
+
+post '/api/chat/summarize' do
+  payload = JSON.parse(request.body.read)
+  message = payload['message']
+  dax = payload['dax']
+  results = payload['results'] || []
+  history = payload['history'] || []
+
+  begin
+    answer = ChatEngine.summarize(message, dax, results, history)
+    json({ answer: answer })
+  rescue => e
+    status 500
+    json({ error: e.message })
+  end
+end
+
+# Backward-compatible single endpoint that orchestrates all three phases.
 post '/api/chat' do
   payload = JSON.parse(request.body.read)
   message = payload['message']
   rls_username = payload['rls_username']
   history = payload['history'] || []
-  
+
   begin
-    result = ChatEngine.chat(message, rls_username, history)
-    json result
+    phase1 = ChatEngine.generate_dax(message, rls_username, history)
+    if phase1['mode'] == 'answer'
+      json({ answer: phase1['answer'], data: [] })
+    else
+      rows = PowerBIService.execute_dax(phase1['dax'], rls_username: rls_username.to_s)
+      answer = ChatEngine.summarize(message, phase1['dax'], rows, history)
+      json({ answer: answer, data: rows, dax: phase1['dax'] })
+    end
   rescue => e
     status 500
     json({ error: e.message })
@@ -57,29 +109,4 @@ end
 
 get '/health' do
   json({ status: 'ok' })
-end
-
-post '/api/reset-thread' do
-  payload = JSON.parse(request.body.read)
-  rls_username = payload['rls_username']
-  ChatEngine.reset_agent_thread(rls_username)
-  json({ status: 'ok', message: "Thread reset for #{rls_username}" })
-end
-
-# ── RLS Diagnostic ────────────────────────────────────────────────────────
-# POST /api/diagnose-rls { "message": "...", "rls_username": "..." }
-# Sends the same query with and without RLS context to prove whether
-# the text-based RLS filter is the root cause.
-post '/api/diagnose-rls' do
-  payload = JSON.parse(request.body.read)
-  message = payload['message']
-  rls_username = payload['rls_username']
-
-  begin
-    result = ChatEngine.diagnose_rls(message, rls_username)
-    json result
-  rescue => e
-    status 500
-    json({ error: e.message })
-  end
 end

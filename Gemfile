@@ -4,7 +4,6 @@ gem 'sinatra'
 gem 'sinatra-contrib'
 gem 'dotenv'
 gem 'rest-client'
-gem 'ruby-openai'
 gem 'json'
 gem 'puma'
 

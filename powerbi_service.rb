@@ -39,21 +39,45 @@ module PowerBIService
     JSON.parse(token_json)['accessToken']
   end
 
-  # DEPRECATED: This project no longer supports ROPC.
-  # Keeping stub for backward compatibility if needed.
-  def get_ropc_token
-    raise "ROPC flow removed. Use Azure CLI auth or client credentials paths configured for this app."
+  # Master user delegated token (ROPC). Keep for compatibility with README's
+  # `master_user` option when tenant policy allows this flow.
+  def get_master_user_token
+    required = {
+      'AZURE_TENANT_ID' => Settings.azure_tenant_id,
+      'AZURE_CLIENT_ID' => Settings.azure_client_id,
+      'DAX_USER_EMAIL' => Settings.dax_user_email,
+      'DAX_USER_PASSWORD' => Settings.dax_user_password
+    }
+    missing = required.select { |_k, v| v.to_s.strip.empty? }.keys
+    raise "Missing required values for master_user mode: #{missing.join(', ')}" unless missing.empty?
+
+    token_url = "https://login.microsoftonline.com/#{Settings.azure_tenant_id}/oauth2/v2.0/token"
+    response = RestClient.post(token_url, {
+      grant_type: 'password',
+      client_id: Settings.azure_client_id,
+      username: Settings.dax_user_email,
+      password: Settings.dax_user_password,
+      scope: 'https://api.fabric.microsoft.com/.default'
+    })
+    parsed = JSON.parse(response.body)
+    token = parsed['access_token'].to_s
+    raise 'master_user token response did not include access_token' if token.empty?
+
+    token
+  rescue RestClient::ExceptionWithResponse => e
+    logger.error "master_user token request failed #{e.response.code}: #{e.response.body[0..500]}"
+    raise "master_user token request failed (#{e.response.code})"
   end
 
   def get_dax_token
     mode = Settings.dax_auth_mode
     case mode
-    when 'ropc'
-      get_ropc_token
-    when 'azcli'
+    when 'default_credential', 'azcli'
       get_azcli_token
+    when 'master_user', 'ropc'
+      get_master_user_token
     else
-      raise "Unknown DAX_AUTH_MODE '#{Settings.dax_auth_mode}'. Supported: 'ropc', 'azcli'."
+      raise "Unknown DAX_AUTH_MODE '#{mode}'. Supported: default_credential, master_user."
     end
   end
 

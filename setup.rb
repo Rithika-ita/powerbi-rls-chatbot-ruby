@@ -268,11 +268,11 @@ rescue => e
   exit 1
 end
 
-def get_ropc_token
+def get_master_user_token
   required = %w[AZURE_TENANT_ID AZURE_CLIENT_ID DAX_USER_EMAIL DAX_USER_PASSWORD]
   missing = required.select { |k| ENV[k].to_s.strip.empty? }
   if missing.any?
-    fail "Missing environment variables for ROPC: #{missing.join(', ')}"
+    fail "Missing environment variables for master_user mode: #{missing.join(', ')}"
     exit 1
   end
 
@@ -289,30 +289,30 @@ def get_ropc_token
   data = JSON.parse(response.body)
   token = data['access_token']
   if token.to_s.strip.empty?
-    fail "ROPC token response did not include access_token."
+    fail "master_user token response did not include access_token."
     exit 1
   end
   token
 rescue RestClient::ExceptionWithResponse => e
-  fail "ROPC token failed #{e.response.code}: #{e.response.body}"
+  fail "master_user token failed #{e.response.code}: #{e.response.body}"
   exit 1
 rescue => e
-  fail "ROPC token failed: #{e.message}"
+  fail "master_user token failed: #{e.message}"
   exit 1
 end
 
 def dax_auth_mode
-  (ENV['DAX_AUTH_MODE'] || 'azcli').downcase
+  (ENV['DAX_AUTH_MODE'] || 'default_credential').downcase
 end
 
 def get_dax_token
   case dax_auth_mode
-  when 'azcli'
+  when 'default_credential', 'azcli'
     get_azcli_token
-  when 'ropc'
-    get_ropc_token
+  when 'master_user', 'ropc'
+    get_master_user_token
   else
-    fail "Unknown DAX_AUTH_MODE '#{dax_auth_mode}'. Supported: azcli, ropc."
+    fail "Unknown DAX_AUTH_MODE '#{dax_auth_mode}'. Supported: default_credential, master_user."
     exit 1
   end
 end

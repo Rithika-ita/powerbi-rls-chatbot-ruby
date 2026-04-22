@@ -12,8 +12,10 @@ let report = null;            // Power BI JS embed reference
 let isLoading = false;
 
 const API = {
-    embedToken: '/api/embed-token',
-    chat:       '/api/chat',
+    embedToken:   '/api/embed-token',
+    generateDax:  '/api/chat/generate-dax',
+    executeDax:   '/api/chat/execute-dax',
+    summarize:    '/api/chat/summarize',
 };
 
 // ---------------------------------------------------------------------------
@@ -196,7 +198,8 @@ async function onSend() {
     showTyping();
 
     try {
-        const res = await fetch(API.chat, {
+        // Phase 1: Generate DAX or conversational answer
+        const phase1Res = await fetch(API.generateDax, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -205,19 +208,54 @@ async function onSend() {
                 history: chatHistory,
             }),
         });
-
-        if (!res.ok) throw new Error(`Chat error: ${res.status}`);
-        const data = await res.json();
+        if (!phase1Res.ok) throw new Error(`Generate DAX error: ${phase1Res.status}`);
+        const phase1 = await phase1Res.json();
 
         hideTyping();
 
-        let answer = data.answer || 'Sorry, I could not generate an answer.';
-
-        addMessage('bot', answer);
-        if (Array.isArray(data.data) && data.data.length > 0) {
-            addResultPreview(data.data);
+        if (phase1.mode === 'answer') {
+            const direct = phase1.answer || 'I can help with data questions from your model.';
+            addMessage('bot', direct);
+            chatHistory.push({ role: 'assistant', content: direct });
+            return;
         }
-        chatHistory.push({ role: 'assistant', content: data.answer });
+
+        const dax = phase1.dax;
+        if (!dax) throw new Error('No DAX returned from generator phase');
+
+        // Phase 2: Execute DAX server-side
+        const phase2Res = await fetch(API.executeDax, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                dax,
+                rls_username: currentUser.rlsUsername,
+            }),
+        });
+        if (!phase2Res.ok) throw new Error(`Execute DAX error: ${phase2Res.status}`);
+        const phase2 = await phase2Res.json();
+        const rows = Array.isArray(phase2.results) ? phase2.results : [];
+
+        // Phase 3: Summarize
+        const phase3Res = await fetch(API.summarize, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: text,
+                dax,
+                results: rows,
+                history: chatHistory,
+            }),
+        });
+        if (!phase3Res.ok) throw new Error(`Summarize error: ${phase3Res.status}`);
+        const phase3 = await phase3Res.json();
+
+        const answer = phase3.answer || 'Sorry, I could not summarize the results.';
+        addMessage('bot', answer);
+        if (rows.length > 0) {
+            addResultPreview(rows);
+        }
+        chatHistory.push({ role: 'assistant', content: answer });
     } catch (err) {
         hideTyping();
         addMessage('bot', `⚠️ Error: ${err.message}`);

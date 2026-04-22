@@ -35,53 +35,59 @@ module Settings
   end
 
   def pbi_rls_role
-    ENV['PBI_RLS_ROLE'] || "ViewerRole"
+    ENV['PBI_RLS_ROLE'] || 'ViewerRole'
   end
 
+  # README-aligned auth modes for executeQueries.
+  # default_credential maps to Azure CLI token in this Ruby implementation.
   def dax_auth_mode
-    ENV['DAX_AUTH_MODE']&.downcase || "azcli"
+    (ENV['DAX_AUTH_MODE'] || 'default_credential').downcase
   end
 
   def dax_user_email
-    ENV['DAX_USER_EMAIL'] || ""
+    ENV['DAX_USER_EMAIL'] || ''
   end
 
   def dax_user_password
-    ENV['DAX_USER_PASSWORD'] || ""
+    ENV['DAX_USER_PASSWORD'] || ''
   end
 
-  def foundry_endpoint
-    ENV['FOUNDRY_ENDPOINT']
+  def azure_openai_endpoint
+    ENV['AZURE_OPENAI_ENDPOINT']
   end
 
-  def foundry_model
-    ENV['FOUNDRY_MODEL']
+  def azure_openai_api_key
+    ENV['AZURE_OPENAI_API_KEY'] || ''
   end
 
-  def foundry_agent_id
-    ENV['FOUNDRY_AGENT_ID']
+  def azure_openai_deployment
+    ENV['AZURE_OPENAI_DEPLOYMENT'] || 'gpt-4o'
   end
 
-  def foundry_scope
-    # Foundry project endpoints expect audience https://ai.azure.com
-    ENV['FOUNDRY_SCOPE'] || 'https://ai.azure.com/.default'
+  def azure_openai_api_version
+    ENV['AZURE_OPENAI_API_VERSION'] || '2024-12-01-preview'
   end
 
-  def foundry_rls_context_mode
-    (ENV['FOUNDRY_RLS_CONTEXT_MODE'] || 'plain').downcase
+  def azure_openai_max_tokens
+    (ENV['AZURE_OPENAI_MAX_TOKENS'] || '900').to_i
   end
 
-  def foundry_reuse_threads?
-    raw = (ENV['FOUNDRY_REUSE_THREADS'] || 'false').downcase
-    %w[1 true yes on].include?(raw)
+  def summary_row_limit
+    (ENV['SUMMARY_ROW_LIMIT'] || '50').to_i
   end
 
-  def use_foundry_endpoint?
-    true  # Always Foundry-only for this deployment
+  # Fallback for environments without API key.
+  def azure_openai_bearer_token
+    token_json = `az account get-access-token --resource https://cognitiveservices.azure.com/ --output json`
+    return '' unless $?.success?
+
+    JSON.parse(token_json)['accessToken'].to_s
+  rescue
+    ''
   end
 
   def app_secret_key
-    ENV['APP_SECRET_KEY'] || "change-me"
+    ENV['APP_SECRET_KEY'] || 'change-me'
   end
 
   def demo_users
@@ -91,29 +97,11 @@ module Settings
         JSON.parse(raw)
       else
         {
-          "Alice (West Region)" => "rmusku@itagroup.com",
-          "Bob (East Region)" => "aslagle@ITAGROUP.com",
-          "Carlos (All Regions)" => "carlos@contoso.com"
+          'Alice (West Region)' => 'alice@contoso.com',
+          'Bob (East Region)' => 'bob@contoso.com'
         }
       end
     end
-  end
-
-  # Per-user passwords for ROPC → OBO flow.
-  # Stored as JSON in USER_PASSWORDS env var:
-  #   USER_PASSWORDS={"user@domain.com":"password1","user2@domain.com":"password2"}
-  def user_passwords
-    @user_passwords ||= begin
-      raw = ENV['USER_PASSWORDS']
-      raw ? JSON.parse(raw) : {}
-    rescue => e
-      logger.error "Failed to parse USER_PASSWORDS: #{e.message}"
-      {}
-    end
-  end
-
-  def user_password_for(email)
-    user_passwords[email]
   end
 
   def rls_config
@@ -123,30 +111,24 @@ module Settings
   private
 
   def load_rls_config
-    config_path = Pathname.new(__dir__) / "rls_config.json"
+    config_path = Pathname.new(__dir__) / 'rls_config.json'
     unless config_path.exist?
-      logger.warn "rls_config.json not found — DAX queries will run WITHOUT RLS filtering. Copy rls_config.example.json → rls_config.json and customise it."
-      return { "enabled" => false }
+      logger.warn 'rls_config.json not found; chat RLS filter instructions are disabled.'
+      return { 'enabled' => false }
     end
 
-    begin
-      raw = JSON.parse(File.read(config_path))
-      config = {
-        "enabled" => raw.fetch("enabled", true),
-        "identity_table" => raw.fetch("identity_table", ""),
-        "identity_column" => raw.fetch("identity_column", ""),
-        "filter_table" => raw.fetch("filter_table", ""),
-        "filter_column" => raw.fetch("filter_column", ""),
-        "custom_lookup_dax" => raw.fetch("custom_lookup_dax", nil),
-        "description" => raw.fetch("description", "")
-      }
-      if config["enabled"]
-        logger.info "RLS config loaded: filter on #{config["filter_table"]}[#{config["filter_column"]}] via #{config["identity_table"]}[#{config["identity_column"]}]"
-      end
-      config
-    rescue => e
-      logger.error "Failed to parse rls_config.json: #{e}"
-      { "enabled" => false }
-    end
+    raw = JSON.parse(File.read(config_path))
+    {
+      'enabled' => raw.fetch('enabled', true),
+      'identity_table' => raw.fetch('identity_table', ''),
+      'identity_column' => raw.fetch('identity_column', ''),
+      'filter_table' => raw.fetch('filter_table', ''),
+      'filter_column' => raw.fetch('filter_column', ''),
+      'custom_lookup_dax' => raw.fetch('custom_lookup_dax', nil),
+      'description' => raw.fetch('description', '')
+    }
+  rescue => e
+    logger.error "Failed to parse rls_config.json: #{e.class} - #{e.message}"
+    { 'enabled' => false }
   end
 end
