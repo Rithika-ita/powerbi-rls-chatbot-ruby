@@ -77,6 +77,10 @@ module Settings
     (ENV['SUMMARY_ROW_LIMIT'] || '50').to_i
   end
 
+  def enable_project_shortcuts
+    ENV['ENABLE_PROJECT_SHORTCUTS'].to_s.strip.downcase == 'true'
+  end
+
   def fabric_agent_instructions
     @fabric_agent_instructions ||= begin
       configured = ENV['FABRIC_AGENT_INSTRUCTIONS_FILE'].to_s.strip

@@ -74,6 +74,7 @@ async function onUserChange() {
 // Power BI Embedding
 // ---------------------------------------------------------------------------
 async function embedReport() {
+    // Show loading immediately while token is fetched.
     reportContainer.innerHTML = '<div class="placeholder-msg"><p>Loading report…</p></div>';
 
     try {
@@ -85,6 +86,17 @@ async function embedReport() {
 
         if (!res.ok) throw new Error(`Embed token error: ${res.status}`);
         const data = await res.json();
+
+        // Reset the SDK right before embedding so the minimum time passes
+        // between reset and the new embed call.
+        try { powerbi.reset(reportContainer); } catch (_) {}
+        report = null;
+
+        // Scrub any attributes the SDK stamped on the container — these
+        // survive innerHTML clears and cause embed() to silently reuse the
+        // previous embed instead of creating a fresh one.
+        ['powerbi-type', 'powerbi-access-token', 'powerbi-embed-type',
+         'powerbi-correlation-id'].forEach(a => reportContainer.removeAttribute(a));
 
         reportContainer.innerHTML = '';
 
@@ -252,9 +264,6 @@ async function onSend() {
 
         const answer = phase3.answer || 'Sorry, I could not summarize the results.';
         addMessage('bot', answer);
-        if (rows.length > 0) {
-            addResultPreview(rows);
-        }
         chatHistory.push({ role: 'assistant', content: answer });
     } catch (err) {
         hideTyping();
@@ -334,48 +343,6 @@ function renderMarkdown(text) {
     html = html.replace(/\n/g, '<br>');
 
     return html;
-}
-
-function addResultPreview(rows) {
-    const maxRows = 25;
-    const previewRows = rows.slice(0, maxRows);
-    const columns = Object.keys(previewRows[0] || {});
-
-    if (columns.length === 0) return;
-
-    const div = document.createElement('div');
-    div.className = 'message bot result-preview';
-
-    const tableHead = columns.map((col) => `<th>${escapeHtml(col)}</th>`).join('');
-    const tableBody = previewRows.map((row) => {
-        const cells = columns.map((col) => `<td>${formatCellValue(row[col])}</td>`).join('');
-        return `<tr>${cells}</tr>`;
-    }).join('');
-
-    const footer = rows.length > maxRows
-        ? `<div class="result-preview-note">Showing first ${maxRows.toLocaleString()} of ${rows.length.toLocaleString()} rows.</div>`
-        : `<div class="result-preview-note">Showing ${rows.length.toLocaleString()} row${rows.length === 1 ? '' : 's'}.</div>`;
-
-    div.innerHTML = `
-        <div class="result-preview-meta">
-            <span class="meta-pill">Rows: ${rows.length.toLocaleString()}</span>
-            <span class="meta-pill">Columns: ${columns.length.toLocaleString()}</span>
-        </div>
-        <details open>
-            <summary>Data preview</summary>
-            <div class="result-preview-table-wrap">
-                <table>
-                    <thead><tr>${tableHead}</tr></thead>
-                    <tbody>${tableBody}</tbody>
-                </table>
-            </div>
-            ${footer}
-        </details>
-        <span class="timestamp">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-    `;
-
-    chatMessages.appendChild(div);
-    chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 function formatCellValue(value) {

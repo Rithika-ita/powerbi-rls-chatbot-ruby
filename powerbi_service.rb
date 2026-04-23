@@ -326,6 +326,8 @@ module PowerBIService
 
     ft = rls["filter_table"]
     fc = rls["filter_column"]
+    it = rls["identity_table"]
+    ic = rls["identity_column"]
 
     formatted_values = values.map do |v|
       begin
@@ -336,14 +338,102 @@ module PowerBIService
       end
     end.join(", ")
 
+    safe_username = rls_username.to_s.gsub('"', '""')
+    treatas_filter = "TREATAS({#{formatted_values}}, '#{ft}'[#{fc}])"
+    user_filter    = "FILTER(ALL('#{it}'), '#{it}'[#{ic}] = \"#{safe_username}\")"
+
     stripped = dax_query.strip
+
+    # SUMMARIZECOLUMNS cannot be nested inside CALCULATETABLE — DAX restriction.
+    # When the query uses SUMMARIZECOLUMNS, inject RLS filters as table filter
+    # arguments directly inside SUMMARIZECOLUMNS instead of wrapping with CALCULATETABLE.
+    if stripped.match?(/SUMMARIZECOLUMNS\s*\(/i)
+      return inject_rls_into_summarizecolumns(stripped, [user_filter, treatas_filter])
+    end
+
     if stripped =~ /^DEFINE/i
       wrapped = stripped.sub(/\bEVALUATE\b/i, "EVALUATE\nCALCULATETABLE(\n")
-      wrapped + ",\n    TREATAS({#{formatted_values}}, '#{ft}'[#{fc}])\n)"
+      wrapped + ",\n    #{treatas_filter}\n)"
     else
       inner = stripped.sub(/^EVALUATE\s+/i, "")
-      "EVALUATE\nCALCULATETABLE(\n    #{inner},\n    TREATAS({#{formatted_values}}, '#{ft}'[#{fc}])\n)"
+      "EVALUATE\nCALCULATETABLE(\n    #{inner},\n    #{treatas_filter}\n)"
     end
+  end
+
+  # Inject RLS filter table expressions directly inside SUMMARIZECOLUMNS,
+  # before the first named-expression pair (e.g. "Measure Name", [Measure]).
+  # This avoids the DAX restriction that SUMMARIZECOLUMNS cannot be nested
+  # inside CALCULATETABLE.
+  def inject_rls_into_summarizecolumns(dax, filter_exprs)
+    m = dax.match(/SUMMARIZECOLUMNS\s*\(/i)
+    return dax unless m
+
+    open_paren = m.end(0) - 1
+
+    # Find the matching closing paren of SUMMARIZECOLUMNS
+    depth = 0; in_dq = false; in_sq = false; close_paren = nil
+    dax[open_paren..].each_char.with_index do |ch, rel|
+      case ch
+      when '"' then in_dq = !in_dq unless in_sq
+      when "'" then in_sq = !in_sq unless in_dq
+      else
+        unless in_dq || in_sq
+          depth += 1 if ch == '('
+          if ch == ')' && depth > 0
+            depth -= 1
+            (close_paren = open_paren + rel) && break if depth.zero?
+          end
+        end
+      end
+    end
+    return dax unless close_paren
+
+    inner = dax[open_paren + 1..close_paren - 1]
+
+    # Find the comma that immediately precedes the first named expression
+    # (a top-level comma where the next non-whitespace token is "string", expr)
+    insert_after = named_expr_comma_pos(inner)
+    filters_str  = filter_exprs.map { |f| "    #{f}" }.join(",\n")
+
+    new_inner = if insert_after
+      inner[0..insert_after] + "\n#{filters_str},\n" + inner[insert_after + 1..]
+    else
+      inner.rstrip + ",\n#{filters_str}"
+    end
+
+    # Return a clean EVALUATE SUMMARIZECOLUMNS (CALCULATETABLE wrappers discarded)
+    "EVALUATE\nSUMMARIZECOLUMNS(#{new_inner}\n)"
+  end
+
+  # Returns the index of the top-level comma that precedes the first named-expression
+  # argument inside a SUMMARIZECOLUMNS argument list, or nil if none found.
+  def named_expr_comma_pos(content)
+    depth = 0; in_dq = false; in_sq = false
+    comma_positions = []
+
+    content.each_char.with_index do |ch, i|
+      case ch
+      when '"' then in_dq = !in_dq unless in_sq
+      when "'" then in_sq = !in_sq unless in_dq
+      else
+        unless in_dq || in_sq
+          depth += 1 if ch == '('
+          depth -= 1 if ch == ')' && depth > 0
+          comma_positions << i if ch == ',' && depth.zero?
+        end
+      end
+    end
+
+    comma_positions.each do |pos|
+      after = content[pos + 1..].lstrip
+      next unless after.start_with?('"')
+      close_q = after.index('"', 1)
+      next unless close_q
+      # Confirm it is a named-expression pair by checking the token after the name is a comma
+      return pos if after[close_q + 1..].lstrip.start_with?(',')
+    end
+
+    nil
   end
 
   def parse_dax_response(data)

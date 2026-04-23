@@ -314,15 +314,7 @@
         "Week of OLD",
         "Year"
       ],
-      "measures": [
-        "_Util+ %",
-        "Actual Hours",
-        "Capitalizable Cost %",
-        "Chargeable Program Cost %",
-        "Non-Chargeable Program Cost %",
-        "Total Actual Cost",
-        "Utilization Target %"
-      ]
+      "measures": []
     },
     {
       "name": "Fact_Assignment",

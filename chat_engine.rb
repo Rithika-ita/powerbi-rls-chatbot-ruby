@@ -10,6 +10,13 @@ module ChatEngine
   end
 
   def generate_dax(user_message, rls_username, conversation_history = [])
+    if cross_user_reference?(user_message, rls_username)
+      return {
+        'mode' => 'answer',
+        'answer' => "I can only answer questions for your signed-in identity (#{rls_username}). I cannot provide data for another user."
+      }
+    end
+
     schema = load_schema
     rls = Settings.rls_config
     fabric_rules = Settings.fabric_agent_instructions
@@ -28,22 +35,43 @@ module ChatEngine
       - Use this identity filter when enabled:
         '#{rls['identity_table']}'[#{rls['identity_column']}] = "#{escape_dax_string(rls_username.to_s)}"
       - Use only tables/columns/measures from the schema.
+
+      CRITICAL — Measures vs Columns:
+      - The schema lists each table's "measures" and "columns" separately.
+      - ONLY reference a measure as [MeasureName] if it appears in that table's "measures" array
+        in the schema. Do NOT invent measure names that are not in the schema.
+      - Measures must be referenced as [MeasureName] with NO table prefix and NO aggregation wrapper.
+      - Columns (listed under "columns") are referenced as 'TableName'[ColumnName] and
+        MUST be aggregated with SUM/MAX/MIN/COUNT etc. when used as named expressions.
+        Correct column usage:   "Hours", SUM('Fact_AllHours'[Hours])
+        Wrong (column as measure): "Hours", [Hours]
+        Wrong (column without aggregation): "Hours", 'Fact_AllHours'[Hours]
+      - Never SUM() or aggregate a true measure — measures are already aggregations.
+      - When in doubt, check the schema "measures" array. If the name is not there, treat it as a
+        column and use SUM() or another appropriate aggregation.
+
       - When asked about hours, utilization, or expense types: ALWAYS group by BOTH
         'Dim_User'[Username] AND 'Dim_Task'[Expense Type] in SUMMARIZECOLUMNS.
-        Include [Actual Hours] and [_Util+ %] as named measures in the result.
-        Example pattern for hours/utilization by expense type:
+        Prefer schema-discovered measures only if they are present in a table's "measures" array.
+        If those measures are not present, use column-based aggregation from available columns.
+        Safe fallback pattern (column-based) for hours by expense type:
           EVALUATE
-          CALCULATETABLE(
-              SUMMARIZECOLUMNS(
-                  'Dim_User'[Username],
-                  'Dim_Task'[Expense Type],
-                  "Actual Hours", [Actual Hours],
-                  "Util %", [_Util+ %]
-              ),
-              'Dim_User'[Username] = "<rls_username>"
+          SUMMARIZECOLUMNS(
+              'Dim_User'[Username],
+              'Dim_Task'[Expense Type],
+              FILTER(ALL('Dim_User'), 'Dim_User'[Username] = "#{escape_dax_string(rls_username.to_s)}"),
+              "Hours", SUM('Fact_AllHours'[Hours])
           )
+        If utilization data is requested and a utilization measure is not present in schema measures,
+        return the hours breakdown and mention utilization measure is unavailable in this model.
+      - NEVER wrap SUMMARIZECOLUMNS in CALCULATETABLE — this is invalid DAX and causes runtime errors.
+      - Apply row-level identity filters using FILTER(ALL('Table'), 'Table'[Col] = "value") placed
+        INSIDE SUMMARIZECOLUMNS, before the named measure expressions.
       - Never return only a single total — always break down by Expense Type.
       - Always include the date range that covers the data (use 'Date'[Date] bounds if filtering).
+      - If the user asks for projects and tasks, include both project and task fields in the result
+        (for example 'Dim_Project'[ProjectName] and 'Dim_Task'[Taskname]) instead of returning only
+        project-level rows.
 
       Rules for mode=answer:
       - If the user sends a simple greeting (for example: hi, hello, hey), respond conversationally with exactly: "Hello! How can I help you today?"
@@ -82,6 +110,11 @@ module ChatEngine
 
   def summarize(user_message, dax, results, conversation_history = [])
     rows = results.is_a?(Array) ? results : []
+    if Settings.enable_project_shortcuts
+      project_list_answer = summarize_as_project_list(user_message, rows)
+      return project_list_answer unless project_list_answer.nil?
+    end
+
     preview = rows.first(Settings.summary_row_limit)
     fabric_rules = Settings.fabric_agent_instructions
 
@@ -96,6 +129,7 @@ module ChatEngine
       - After the table, add a bullet list showing Utilization % (to 2 decimal places) for each
         Expense Type that has a non-null, non-zero Util % value.
       - If results are empty, explain that no data was found for the requested scope.
+      - Never mention row counts, column counts, query metadata, or data preview wording.
       - Do not invent values not present in the data.
       - Close with a friendly offer to provide a different date range or more detail.
 
@@ -106,7 +140,6 @@ module ChatEngine
     user_payload = {
       question: user_message,
       dax: dax,
-      rows_total: rows.length,
       rows_preview: preview
     }
 
@@ -223,5 +256,65 @@ module ChatEngine
 
   def escape_dax_string(value)
     value.gsub('"', '""')
+  end
+
+  def summarize_as_project_list(user_message, rows)
+    return nil unless project_list_question?(user_message)
+
+    project_column = detect_project_column(rows)
+    return nil if project_column.nil?
+
+    projects = rows.map { |row| row[project_column] }
+                   .compact
+                   .map { |value| value.to_s.strip }
+                   .reject(&:empty?)
+                   .uniq
+                   .sort
+
+    return 'I could not find any projects for your current access scope.' if projects.empty?
+
+    lines = ['Here are your projects:']
+    projects.each do |project|
+      lines << "- #{project}"
+    end
+    lines.join("\n")
+  end
+
+  def detect_project_column(rows)
+    sample = rows.find { |row| row.is_a?(Hash) }
+    return nil if sample.nil?
+
+    sample.keys.find { |key| key.to_s.downcase.include?('project') }
+  end
+
+  def project_list_question?(user_message)
+    text = user_message.to_s.downcase
+    asks_project = text.include?('project')
+    asks_task = text.include?('task') || text.include?('tasks')
+
+    # Only use the lightweight project list formatter when the user is
+    # explicitly asking for projects, not when they ask for projects and tasks.
+    asks_project && !asks_task
+  end
+
+  def cross_user_reference?(user_message, rls_username)
+    text = user_message.to_s.downcase
+    current_identity = rls_username.to_s.downcase.strip
+    return false if text.empty? || current_identity.empty?
+
+    referenced_emails = text.scan(/\b[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}\b/)
+    return true if referenced_emails.any? { |email| email != current_identity }
+
+    Settings.demo_users.each do |display_name, email|
+      other_email = email.to_s.downcase.strip
+      other_name = display_name.to_s.downcase.strip
+      next if other_email.empty?
+      next if other_email == current_identity
+
+      return true if text.include?(other_email)
+      return true if !other_name.empty? && text.include?(other_name)
+    end
+
+    false
   end
 end
