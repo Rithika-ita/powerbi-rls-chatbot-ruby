@@ -232,6 +232,25 @@ or edit it manually.
 > **Tip:** Re-run `setup.rb` whenever your Power BI model changes (new tables,
 > renamed columns, etc.) to keep the schema in sync.
 
+## Fabric Agent Style Instructions
+
+To mimic behavior from a Fabric Data Agent, this project now supports a dedicated
+instruction file used in both:
+
+- DAX generation (`/api/chat/generate-dax`)
+- Result summarization (`/api/chat/summarize` and `/api/chat`)
+
+Default file:
+
+`fabric_agent_instructions.txt`
+
+You can point to a different file with:
+
+`FABRIC_AGENT_INSTRUCTIONS_FILE=/absolute/or/relative/path.txt`
+
+This is useful for rules such as FYTD cutoffs, utilization formatting,
+manager-reporting logic, and required output shape.
+
 ---
 
 ## Environment Variables Reference

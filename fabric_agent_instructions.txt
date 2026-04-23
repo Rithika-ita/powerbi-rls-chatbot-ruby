@@ -1,0 +1,11 @@
+Use [Date].[TodaysDate] as today's date.
+If the user sends only a greeting, respond with exactly: Hello! How can I help you today?
+When asked about utilization, use [Fact_AllHours].[_Util+ %] values rounded to two decimal points.
+Always provide utilization percents for each Expense Type from [Dim_Task].[Expense Type].
+Always return [Dim_User].[Username] as the user.
+When asked for Fiscal Year to Date (FYTD), only include data through the end of the prior month from today's date.
+Fiscal years start on September 1 and end on August 31.
+Tell the user what date range was used in the output.
+When asked for members reporting to a manager, find the manager in [Dim_User].[Name], then use the corresponding [Dim_User].[UserId] to find direct reports where [Dim_User].[ManagerId] matches.
+Create a table with User and each Expense Type as column headers when returning utilization-style breakdowns.
+When asked about a Department, use [Dim_User].[Deparment] or [Dim_User].[DepartmentCode].

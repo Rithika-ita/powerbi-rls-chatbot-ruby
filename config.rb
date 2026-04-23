@@ -3,6 +3,7 @@ require 'json'
 require 'pathname'
 require 'logger'
 
+
 module Settings
   extend self
 
@@ -76,6 +77,27 @@ module Settings
     (ENV['SUMMARY_ROW_LIMIT'] || '50').to_i
   end
 
+  def fabric_agent_instructions
+    @fabric_agent_instructions ||= begin
+      configured = ENV['FABRIC_AGENT_INSTRUCTIONS_FILE'].to_s.strip
+      path = if configured.empty?
+        Pathname.new(__dir__) / 'fabric_agent_instructions.txt'
+      else
+        Pathname.new(configured)
+      end
+
+      if path.exist?
+        File.read(path).to_s.strip
+      else
+        logger.warn "Fabric instructions file not found at #{path}; using built-in defaults."
+        default_fabric_agent_instructions
+      end
+    rescue => e
+      logger.warn "Failed loading Fabric instructions: #{e.class} - #{e.message}. Using built-in defaults."
+      default_fabric_agent_instructions
+    end
+  end
+
   # Fallback for environments without API key.
   def azure_openai_bearer_token
     token_json = `az account get-access-token --resource https://cognitiveservices.azure.com/ --output json`
@@ -97,8 +119,9 @@ module Settings
         JSON.parse(raw)
       else
         {
-          'Alice (West Region)' => 'alice@contoso.com',
-          'Bob (East Region)' => 'bob@contoso.com'
+          "Rithika Musku" => "rmusku@itagroup.com",
+          "Andrew Slagle" => "aslagle@itagroup.com",
+          "Gurdish Kaur" => "gkaur@itagroup.com"
         }
       end
     end
@@ -130,5 +153,20 @@ module Settings
   rescue => e
     logger.error "Failed to parse rls_config.json: #{e.class} - #{e.message}"
     { 'enabled' => false }
+  end
+
+  def default_fabric_agent_instructions
+    <<~TEXT.strip
+      Use [Date].[TodaysDate] as today's date.
+      When asked about utilization, use [Fact_AllHours].[_Util+ %] values rounded to two decimal points.
+      Always provide utilization percents for each Expense Type from [Dim_Task].[Expense Type].
+      Always return [Dim_User].[Username] as the user.
+      When asked for Fiscal Year to Date (FYTD), only include data through the end of the prior month from today's date.
+      Fiscal years start on September 1 and end on August 31.
+      Tell the user what date range was used in the output.
+      When asked for members reporting to a manager, find the manager in [Dim_User].[Name], then use the corresponding [Dim_User].[UserId] to find direct reports where [Dim_User].[ManagerId] matches.
+      Create a table with User and each Expense Type as column headers when returning utilization-style breakdowns.
+      When asked about a Department, use [Dim_User].[Deparment] or [Dim_User].[DepartmentCode].
+    TEXT
   end
 end

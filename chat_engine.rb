@@ -12,6 +12,7 @@ module ChatEngine
   def generate_dax(user_message, rls_username, conversation_history = [])
     schema = load_schema
     rls = Settings.rls_config
+    fabric_rules = Settings.fabric_agent_instructions
 
     prompt = <<~PROMPT
       You are a Power BI DAX assistant.
@@ -27,6 +28,29 @@ module ChatEngine
       - Use this identity filter when enabled:
         '#{rls['identity_table']}'[#{rls['identity_column']}] = "#{escape_dax_string(rls_username.to_s)}"
       - Use only tables/columns/measures from the schema.
+      - When asked about hours, utilization, or expense types: ALWAYS group by BOTH
+        'Dim_User'[Username] AND 'Dim_Task'[Expense Type] in SUMMARIZECOLUMNS.
+        Include [Actual Hours] and [_Util+ %] as named measures in the result.
+        Example pattern for hours/utilization by expense type:
+          EVALUATE
+          CALCULATETABLE(
+              SUMMARIZECOLUMNS(
+                  'Dim_User'[Username],
+                  'Dim_Task'[Expense Type],
+                  "Actual Hours", [Actual Hours],
+                  "Util %", [_Util+ %]
+              ),
+              'Dim_User'[Username] = "<rls_username>"
+          )
+      - Never return only a single total — always break down by Expense Type.
+      - Always include the date range that covers the data (use 'Date'[Date] bounds if filtering).
+
+      Rules for mode=answer:
+      - If the user sends a simple greeting (for example: hi, hello, hey), respond conversationally with exactly: "Hello! How can I help you today?"
+      - For other non-data questions, keep the response short and helpful.
+
+      Fabric-style business instructions to enforce:
+      #{fabric_rules}
 
       Dataset schema (JSON):
       #{schema.to_json}
@@ -59,14 +83,24 @@ module ChatEngine
   def summarize(user_message, dax, results, conversation_history = [])
     rows = results.is_a?(Array) ? results : []
     preview = rows.first(Settings.summary_row_limit)
+    fabric_rules = Settings.fabric_agent_instructions
 
     prompt = <<~PROMPT
-      You are a data analyst assistant.
-      Summarize query results clearly and concisely.
-      - Keep response under 8 sentences.
+      You are a data analyst assistant presenting Power BI query results.
+
+      Formatting rules:
+      - Always state the user's name/email and the date range covered by the data at the top.
+      - When results contain 'Expense Type' or similar category breakdowns, present them as a
+        Markdown table with User as the first column and each unique Expense Type as a column header.
+        Fill each cell with the corresponding Actual Hours value (blank if none).
+      - After the table, add a bullet list showing Utilization % (to 2 decimal places) for each
+        Expense Type that has a non-null, non-zero Util % value.
       - If results are empty, explain that no data was found for the requested scope.
       - Do not invent values not present in the data.
-      - Mention that the response is scoped by the user's RLS context.
+      - Close with a friendly offer to provide a different date range or more detail.
+
+      Fabric-style business instructions to also enforce:
+      #{fabric_rules}
     PROMPT
 
     user_payload = {

@@ -208,7 +208,7 @@ async function onSend() {
                 history: chatHistory,
             }),
         });
-        if (!phase1Res.ok) throw new Error(`Generate DAX error: ${phase1Res.status}`);
+        if (!phase1Res.ok) throw new Error(await extractApiError(phase1Res, 'Generate DAX'));
         const phase1 = await phase1Res.json();
 
         hideTyping();
@@ -232,7 +232,7 @@ async function onSend() {
                 rls_username: currentUser.rlsUsername,
             }),
         });
-        if (!phase2Res.ok) throw new Error(`Execute DAX error: ${phase2Res.status}`);
+        if (!phase2Res.ok) throw new Error(await extractApiError(phase2Res, 'Execute DAX'));
         const phase2 = await phase2Res.json();
         const rows = Array.isArray(phase2.results) ? phase2.results : [];
 
@@ -247,7 +247,7 @@ async function onSend() {
                 history: chatHistory,
             }),
         });
-        if (!phase3Res.ok) throw new Error(`Summarize error: ${phase3Res.status}`);
+        if (!phase3Res.ok) throw new Error(await extractApiError(phase3Res, 'Summarize'));
         const phase3 = await phase3Res.json();
 
         const answer = phase3.answer || 'Sorry, I could not summarize the results.';
@@ -264,6 +264,20 @@ async function onSend() {
         sendBtn.disabled = false;
         chatInput.focus();
     }
+}
+
+async function extractApiError(response, phaseLabel) {
+    let detail = '';
+
+    try {
+        const payload = await response.json();
+        detail = (payload && payload.error) ? String(payload.error) : '';
+    } catch (_e) {
+        // Ignore JSON parse failures and fall back to status text.
+    }
+
+    const base = `${phaseLabel} error: ${response.status}`;
+    return detail ? `${base} - ${detail}` : base;
 }
 
 // ---------------------------------------------------------------------------
